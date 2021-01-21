@@ -531,7 +531,7 @@ module.exports = {
 				bucketName: { type: "string" },
 				objectName: { type: "string" },
 				expires: { type: "number", integer: true, optional: true, convert: true },
-				reqParams: { type: "object", optional: true },
+				reqParams: { type: "object", optional: true, default: {} },
 				requestDate: { type: "string", optional: true }
 			},
 			handler(ctx) {
@@ -653,7 +653,8 @@ module.exports = {
 			}
 		},
 		/**
-		 * Allows setting policy conditions to a presigned URL for POST operations. Policies such as bucket name to receive object uploads, key name prefixes, expiry policy may be set.
+		 * Allows setting policy conditions to a presigned URL for POST operations. Policies such as bucket name to receive object uploads, key name prefixes,
+		 * expiry policy may be set.
 		 *
 		 * @actions
 		 * @param {object} policy - Policy object created by minioClient.newPostPolicy()
@@ -708,6 +709,14 @@ module.exports = {
 					}
 					return this.client.presignedPostPolicy(_policy);
 				});
+			}
+		},
+		getBucketPolicy: {
+			params: {
+				bucketName: { type: "string" }
+			},
+			async handler(ctx) {
+				return await this.client.getBucketPolicy(ctx.params.bucketName);
 			}
 		}
 	},
