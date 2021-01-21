@@ -530,7 +530,7 @@ module.exports = {
 				httpMethod: { type: "string" },
 				bucketName: { type: "string" },
 				objectName: { type: "string" },
-				expires: { type: "number", integer: true, optional: true },
+				expires: { type: "number", integer: true, optional: true, convert: true },
 				reqParams: { type: "object", optional: true },
 				requestDate: { type: "string", optional: true }
 			},
