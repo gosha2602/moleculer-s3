@@ -21,7 +21,7 @@ module.exports = {
 		/** @type {String} The Hostname minio is running on and available at. Hostname or IP-Address */
 		endPoint: undefined,
 		/** @type {Number} TCP/IP port number minio is listening on. Default value set to 80 for HTTP and 443 for HTTPs.*/
-		port: undefined,
+		port: 443,
 		/** @type {Boolean?} If set to true, https is used instead of http. Default is true.*/
 		useSSL: true,
 		/** @type {String} The AccessKey to use when connecting to minio */
@@ -727,7 +727,7 @@ module.exports = {
 	 */
 	started() {
 		/* istanbul ignore next */
-		return this.Promise.resolve()
+		/*return this.Promise.resolve()
 			.then(() => this.ping())
 			.then(() => {
 				this.settings.minioHealthCheckInterval
@@ -743,7 +743,7 @@ module.exports = {
 			})
 			.catch(e => {
 				throw new MinioInitializationError(e.message);
-			});
+			});*/
 	},
 	/**
 	 * Service stopped lifecycle event handler.
