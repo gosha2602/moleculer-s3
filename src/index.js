@@ -1,5 +1,3 @@
-const { MinioPingError, MinioInitializationError } = require("./errors");
-const { isString, isUndefined } = require("ramda-adjunct");
 const AWS = require("aws-sdk");
 
 /**
