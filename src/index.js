@@ -1,6 +1,7 @@
-const Minio = require("minio");
 const { MinioPingError, MinioInitializationError } = require("./errors");
 const { isString, isUndefined } = require("ramda-adjunct");
+const AWS = require("aws-sdk");
+
 /**
  * Service mixin for managing files in a Minio S3 backend
  *
@@ -14,20 +15,20 @@ const { isString, isUndefined } = require("ramda-adjunct");
  */
 module.exports = {
 	// Service name
-	name: "minio",
+	name: "s3",
 
 	// Default settings
 	settings: {
 		/** @type {String} The Hostname minio is running on and available at. Hostname or IP-Address */
-		endPoint: undefined,
+		endPoint: "ams3.digitaloceanspaces.com",
 		/** @type {Number} TCP/IP port number minio is listening on. Default value set to 80 for HTTP and 443 for HTTPs.*/
 		port: 443,
 		/** @type {Boolean?} If set to true, https is used instead of http. Default is true.*/
 		useSSL: true,
 		/** @type {String} The AccessKey to use when connecting to minio */
-		accessKey: undefined,
+		accessKey: "J5H6INOIGGHRN63P4C32",
 		/** @type {String} The SecretKey to use when connecting to minio */
-		secretKey: undefined,
+		secretKey: "4a+Rx8DtsnLOXNZI04XuZeGLiWr/DopSSz2g94VdQV4",
 		/** @type {String?} Set this value to override region cache*/
 		region: undefined,
 		/** @type {String?} Set this value to pass in a custom transport. (Optional)*/
@@ -40,61 +41,22 @@ module.exports = {
 
 	methods: {
 		/**
-		 * Creates and returns a new Minio client
+		 * Creates and returns a new Aws client
 		 *
 		 * @methods
 		 *
 		 * @returns {Client}
 		 */
-		createMinioClient() {
-			return new Minio.Client({
-				endPoint: this.settings.endPoint,
-				port: this.settings.port,
-				useSSL: this.settings.useSSL,
-				accessKey: this.settings.accessKey,
-				secretKey: this.settings.secretKey,
-				region: this.settings.region,
-				transport: this.settings.transport,
-				sessionToken: this.settings.sessionToken
+		createAwsClient() {
+			const spacesEndpoint = new AWS.Endpoint(this.settings.endPoint);
+			return new AWS.S3({
+				endpoint: spacesEndpoint,
+				accessKeyId: this.settings.accessKey,
+				secretAccessKey: this.settings.secretKey
 			});
-		},
-		/**
-		 * Pings the configured minio backend
-		 *
-		 * @param {number} timeout - Amount of miliseconds to wait for a ping response
-		 * @returns {PromiseLike<boolean|MinioPingError>}
-		 */
-		ping({ timeout = 5000 } = {}) {
-			return this.Promise.race([
-				this.client.listBuckets().then(() => true),
-				this.Promise.delay(timeout).then(() => {
-					throw new MinioPingError();
-				})
-			]);
 		}
 	},
 	actions: {
-		/**
-		 * Creates a new Bucket
-		 *
-		 * @actions
-		 *
-		 * @param {string} bucketName - The name of the bucket
-		 * @param {string} region - The region to create the bucket in. Defaults to "us-east-1"
-		 *
-		 * @returns {PromiseLike<undefined|Error>}
-		 */
-		makeBucket: {
-			params: {
-				bucketName: { type: "string" },
-				region: { type: "string", optional: true }
-			},
-			handler(ctx) {
-				return this.Promise.resolve(ctx.params).then(({ bucketName, region = "" }) =>
-					this.client.makeBucket(bucketName, region)
-				);
-			}
-		},
 		/**
 		 * Lists all buckets.
 		 *
@@ -106,41 +68,13 @@ module.exports = {
 			handler() {
 				return this.client
 					.listBuckets()
-					.then(buckets => (isUndefined(buckets) ? [] : buckets));
+					.promise()
+					.then(buckets => {
+						return buckets & buckets["data"] ? buckets["data"] : [];
+					});
 			}
 		},
-		/**
-		 * Checks if a bucket exists.
-		 *
-		 * @actions
-		 * @param {string} bucketName - Name of the bucket
-		 *
-		 * @returns {PromiseLike<boolean|Error>}
-		 */
-		bucketExists: {
-			params: {
-				bucketName: { type: "string" }
-			},
-			handler(ctx) {
-				return this.client.bucketExists(ctx.params.bucketName);
-			}
-		},
-		/**
-		 * Removes a bucket.
-		 *
-		 * @actions
-		 * @param {string} bucketName - Name of the bucket
-		 *
-		 * @returns {PromiseLike<boolean|Error>}
-		 */
-		removeBucket: {
-			params: {
-				bucketName: { type: "string" }
-			},
-			handler(ctx) {
-				return this.client.removeBucket(ctx.params.bucketName);
-			}
-		},
+
 		/**
 		 * Lists all objects in a bucket.
 		 *
@@ -185,7 +119,7 @@ module.exports = {
 		 * @actions
 		 * @param {string} bucketName - Name of the bucket
 		 * @param {string} prefix - The prefix of the objects that should be listed (optional, default '').
-		 * @param {boolean} recursive - `true` indicates recursive style listing and false indicates directory style listing delimited by '/'. (optional, default `false`).
+		 * @param {boolean} maxObjects - maxObjects.
 		 * @param {string} startAfter - Specifies the object name to start after when listing objects in a bucket. (optional, default '').
 		 *
 		 * @returns {PromiseLike<Object[]|Error>}
@@ -194,30 +128,23 @@ module.exports = {
 			params: {
 				bucketName: { type: "string" },
 				prefix: { type: "string", optional: true },
-				recursive: { type: "boolean", optional: true },
+				maxObjects: { type: "number", convert: true, optional: true },
 				startAfter: { type: "string", optional: true }
 			},
-			handler(ctx) {
-				return this.Promise.resolve(ctx.params).then(
-					({ bucketName, prefix = "", recursive = false, startAfter = "" }) => {
-						return new this.Promise((resolve, reject) => {
-							try {
-								const stream = this.client.listObjectsV2(
-									bucketName,
-									prefix,
-									recursive,
-									startAfter
-								);
-								const objects = [];
-								stream.on("data", el => objects.push(el));
-								stream.on("end", () => resolve(objects));
-								stream.on("error", reject);
-							} catch (e) {
-								reject(e);
-							}
-						});
-					}
-				);
+			async handler(ctx) {
+				const doParams = {
+					Bucket: ctx.params.bucketName,
+					StartAfter: ctx.params.startAfter,
+					Prefix: ctx.params.prefix,
+					MaxKeys: ctx.params.maxObjects
+				};
+				return await this.client
+					.listObjectsV2(doParams)
+					.promise()
+					.then(result => {
+						console.log(result);
+						return result;
+					});
 			}
 		},
 		/**
@@ -273,7 +200,69 @@ module.exports = {
 				objectName: { type: "string" }
 			},
 			handler(ctx) {
-				return this.client.getObject(ctx.params.bucketName, ctx.params.objectName);
+				return this.client
+					.getObject({
+						Bucket: ctx.params.bucketName,
+						Key: ctx.params.objectName
+					})
+					.promise();
+			}
+		},
+		/**
+		 * Returns the access control list (ACL) of an object
+		 *
+		 * @actions
+		 * @param {string} bucketName - Name of the bucket
+		 * @param {string} objectName - Name of the object.
+		 *
+		 * @returns {PromiseLike<ReadableStream|Error>}
+		 */
+		getObjectAcl: {
+			params: {
+				bucketName: { type: "string" },
+				objectName: { type: "string" }
+			},
+			async handler(ctx) {
+				return await this.client
+					.getObjectAcl({
+						Bucket: ctx.params.bucketName,
+						Key: ctx.params.objectName
+					})
+					.promise();
+				/*.then(result => {
+						console.log(result);
+						return result;
+					});**/
+			}
+		},
+		/**
+		 * Set the access control list (ACL) of an object
+		 *
+		 * @actions
+		 * @param {string} bucketName - Name of the bucket
+		 * @param {string} objectName - Name of the object.
+		 * @param {string} acl - operation.
+		 *
+		 * @returns {PromiseLike<ReadableStream|Error>}
+		 */
+		putObjectAcl: {
+			params: {
+				bucketName: { type: "string" },
+				objectName: { type: "string" },
+				acl: { type: "string" }
+			},
+			async handler(ctx) {
+				return await this.client
+					.putObjectAcl({
+						Bucket: ctx.params.bucketName,
+						Key: ctx.params.objectName,
+						ACL: ctx.params.acl
+					})
+					.promise()
+					.then(result => {
+						console.log(result);
+						return result;
+					});
 			}
 		},
 		/**
@@ -570,43 +559,21 @@ module.exports = {
 		 * @param {string} bucketName - Name of the bucket.
 		 * @param {string} objectName - Name of the object.
 		 * @param {number} expires - Expiry time in seconds. Default value is 7 days. (optional)
-		 * @param {object} reqParams - request parameters. (optional)
-		 * @param {string} requestDate - An ISO date string, the url will be issued at. Default value is now. (optional)
 		 * @returns {PromiseLike<String|Error>}
 		 */
 		presignedGetObject: {
 			params: {
 				bucketName: { type: "string" },
 				objectName: { type: "string" },
-				expires: { type: "number", integer: true, optional: true },
-				reqParams: { type: "object", optional: true },
-				requestDate: { type: "string", optional: true }
+				expires: { type: "number", integer: true, optional: true }
 			},
-			handler(ctx) {
-				return this.Promise.resolve(ctx.params).then(
-					({ bucketName, objectName, expires, reqParams, requestDate }) => {
-						if (isString(requestDate)) {
-							requestDate = new Date(requestDate);
-						}
-
-						return new this.Promise((resolve, reject) => {
-							this.client.presignedGetObject(
-								bucketName,
-								objectName,
-								expires,
-								reqParams,
-								requestDate,
-								(error, url) => {
-									if (error) {
-										reject(error);
-									} else {
-										resolve(url);
-									}
-								}
-							);
-						});
-					}
-				);
+			async handler(ctx) {
+				const doParams = {
+					Bucket: ctx.params.bucketName,
+					Key: ctx.params.objectName,
+					Expires: ctx.params.expires
+				};
+				return await this.client.getSignedUrlPromise("getObject", doParams);
 			}
 		},
 		/**
@@ -631,25 +598,13 @@ module.exports = {
 					default: 60 * 60 * 2
 				}
 			},
-			handler(ctx) {
-				return this.Promise.resolve(ctx.params).then(
-					({ bucketName, objectName, expires }) => {
-						return new this.Promise((resolve, reject) => {
-							this.client.presignedPutObject(
-								bucketName,
-								objectName,
-								expires,
-								(error, url) => {
-									if (error) {
-										reject(error);
-									} else {
-										resolve(url);
-									}
-								}
-							);
-						});
-					}
-				);
+			async handler(ctx) {
+				const doParams = {
+					Bucket: ctx.params.bucketName,
+					Key: ctx.params.objectName,
+					Expires: ctx.params.expires
+				};
+				return await this.client.getSignedUrlPromise("putObject", doParams);
 			}
 		},
 		/**
@@ -726,7 +681,7 @@ module.exports = {
 	 * Constructs a new minio client entity
 	 */
 	created() {
-		this.client = this.createMinioClient();
+		this.client = this.createAwsClient();
 	},
 	/**
 	 * Service started lifecycle event handler. Resolves when:
