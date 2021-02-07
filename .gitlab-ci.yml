@@ -1,0 +1,10 @@
+image: node:14
+
+stages:
+    - deploy
+
+deploy:
+    stage: deploy
+    script:
+        - echo "//gitlab.fitomax.net/api/v4/projects/38/packages/npm/:_authToken=9ttMEyydBoFUKsoJc9Gt">.npmrc
+        - npm publish

@@ -5,11 +5,7 @@ const AWS = require("aws-sdk");
  *
  * @name moleculer-minio
  * @module Service
- *
- * dependes
- * "minio": "^7.0.2",
- * "ramda": "0.26.1",
- *  "ramda-adjunct": "^2.10.0"
+
  */
 module.exports = {
 	// Service name
@@ -18,15 +14,15 @@ module.exports = {
 	// Default settings
 	settings: {
 		/** @type {String} The Hostname minio is running on and available at. Hostname or IP-Address */
-		endPoint: "ams3.digitaloceanspaces.com",
+		endPoint: process.env.DO_SPACE_ENDPOINT,
 		/** @type {Number} TCP/IP port number minio is listening on. Default value set to 80 for HTTP and 443 for HTTPs.*/
 		port: 443,
 		/** @type {Boolean?} If set to true, https is used instead of http. Default is true.*/
 		useSSL: true,
 		/** @type {String} The AccessKey to use when connecting to minio */
-		accessKey: "J5H6INOIGGHRN63P4C32",
+		accessKey: process.env.DO_SPACES_KEY,
 		/** @type {String} The SecretKey to use when connecting to minio */
-		secretKey: "4a+Rx8DtsnLOXNZI04XuZeGLiWr/DopSSz2g94VdQV4",
+		secretKey: process.env.DO_SPACES_SECRET,
 		/** @type {String?} Set this value to override region cache*/
 		region: undefined,
 		/** @type {String?} Set this value to pass in a custom transport. (Optional)*/
