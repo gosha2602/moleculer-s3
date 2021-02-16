@@ -46,7 +46,8 @@ module.exports = {
 			return new AWS.S3({
 				endpoint: spacesEndpoint,
 				accessKeyId: this.settings.accessKey,
-				secretAccessKey: this.settings.secretKey
+				secretAccessKey: this.settings.secretKey,
+				signatureVersion: "v4"
 			});
 		}
 	},
@@ -367,60 +368,7 @@ module.exports = {
 				);
 			}
 		},
-		/**
-		 * Copy a source object into a new object in the specified bucket.
-		 *
-		 * @actions
-		 * @param {string} bucketName - Name of the bucket.
-		 * @param {string} objectName - Name of the object.
-		 * @param {string} sourceObject - Path of the file to be copied.
-		 * @param {object} conditions - Conditions to be satisfied before allowing object copy.
-		 * @param {object} metaData - metaData of the object (optional).
-		 *
-		 * @returns {PromiseLike<{etag: {string}, lastModified: {string}}|Error>}
-		 */
-		copyObject: {
-			params: {
-				bucketName: { type: "string" },
-				objectName: { type: "string" },
-				sourceObject: { type: "string" },
-				conditions: {
-					type: "object",
-					properties: {
-						modified: { type: "string", optional: true },
-						unmodified: { type: "string", optional: true },
-						matchETag: { type: "string", optional: true },
-						matchETagExcept: { type: "string", optional: true }
-					}
-				}
-			},
-			handler(ctx) {
-				return this.Promise.resolve(ctx.params).then(
-					({ bucketName, objectName, sourceObject, conditions }) => {
-						const _conditions = new Minio.CopyConditions();
-						if (conditions.modified) {
-							_conditions.setModified(new Date(conditions.modified));
-						}
-						if (conditions.unmodified) {
-							_conditions.setUnmodified(new Date(conditions.unmodified));
-						}
-						if (conditions.matchETag) {
-							_conditions.setMatchETag(conditions.matchETag);
-						}
-						if (conditions.matchETagExcept) {
-							_conditions.setMatchETagExcept(conditions.matchETagExcept);
-						}
-						conditions = _conditions;
-						return this.client.copyObject(
-							bucketName,
-							objectName,
-							sourceObject,
-							conditions
-						);
-					}
-				);
-			}
-		},
+
 		/**
 		 * Gets metadata of an object.
 		 *
@@ -590,13 +538,21 @@ module.exports = {
 					optional: true,
 					convert: true,
 					default: 60 * 60 * 2
-				}
+				},
+				acl: {
+					type: "string",
+					optional: true,
+					default: "public-read"
+				},
+				contentType: "string"
 			},
 			async handler(ctx) {
 				const doParams = {
 					Bucket: ctx.params.bucketName,
 					Key: ctx.params.objectName,
-					Expires: ctx.params.expires
+					Expires: ctx.params.expires,
+					Acl: ctx.params.acl,
+					ContentType: ctx.params.contentType
 				};
 				return await this.client.getSignedUrlPromise("putObject", doParams);
 			}
