@@ -468,7 +468,7 @@ module.exports = {
 			handler(ctx) {
 				return this.Promise.resolve(ctx.params).then(
 					({ httpMethod, bucketName, objectName, expires, reqParams, requestDate }) => {
-						if (isString(requestDate)) {
+						if (typeof requestDate === "string") {
 							requestDate = new Date(requestDate);
 						}
 
